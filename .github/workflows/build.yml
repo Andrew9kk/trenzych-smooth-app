@@ -71,6 +71,10 @@ jobs:
           gomobile bind -v -target=android -androidapi 24 -trimpath -ldflags='-s -w -buildid= -checklinkname=0' -o ../app/libs/libv2ray.aar ./
           cd .. && ls -lh app/libs/libv2ray.aar
 
+      - name: Verify libv2ray AAR
+        run: |
+          unzip -l app/libs/libv2ray.aar
+ 
       - name: Build hev-socks5-tunnel (.so)
         run: |
           git clone --recursive --depth=1 https://github.com/heiher/hev-socks5-tunnel
