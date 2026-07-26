@@ -88,6 +88,11 @@ jobs:
           mkdir -p app/src/main/jniLibs
           cp -r "$TMP/libs/"* app/src/main/jniLibs/
 
+      - name: Verify JNI libraries
+        run: |
+          echo "===== jniLibs ====="
+          find app/src/main/jniLibs -type f      
+          
       - name: Build full debug APK
         run: ./gradlew assembleFullDebug --no-daemon --stacktrace
 
