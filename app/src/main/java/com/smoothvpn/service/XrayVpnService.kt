@@ -137,47 +137,68 @@ class XrayVpnService : VpnService() {
         if (ENABLE_AUTO_FAILOVER) startMonitor()
     }
 
-    /** Brings up the engine for [profile]. Returns false on any failure. */
-    private fun bringUp(profile: Profile): Boolean {
-        val geoOk = GeoAssets.ensure(applicationContext)
-        Libv2ray.initCoreEnv(GeoAssets.assetDir(applicationContext), "")
+ /** Brings up the engine for [profile]. Returns false on any failure. */
+private fun bringUp(profile: Profile): Boolean {
+    val geoOk = GeoAssets.ensure(applicationContext)
+    Libv2ray.initCoreEnv(GeoAssets.assetDir(applicationContext), "")
 
-        val rawConfig = XrayConfigBuilder.build(profile, settings.toRoutingOptions(geoOk))
-        val config = maybeFragment(rawConfig)
+    val rawConfig = XrayConfigBuilder.build(profile, settings.toRoutingOptions(geoOk))
+    val config = maybeFragment(rawConfig)
 
-        if (!establishTun()) { lastError = "Couldn't create the VPN interface"; return false }
-        val fd = tunFd?.fd ?: run { lastError = "VPN interface unavailable"; return false }
-
-        val ctrl = Libv2ray.newCoreController(Callback())
-        controller = ctrl
-        try {
-            ctrl.startLoop(config, 0)   // 0 = SOCKS-only; hev bridges the TUN below
-        } catch (e: Exception) {
-            Log.e(TAG, "core startLoop failed", e); lastError = e.message ?: "core start failed"; return false
-        }
-
-        try {
-            val bridge = TProxyService(
-                filesDir = filesDir,
-                tunFd = fd,
-                mtu = VPN_MTU,
-                ipv4 = PRIVATE_VLAN4_CLIENT,
-                socksPort = XrayConfigBuilder.SOCKS_PORT
-            )
-            bridge.start()
-            tproxy = bridge
-        } catch (t: Throwable) {
-            Log.e(TAG, "tun2socks bridge failed", t); lastError = t.message ?: "tunnel bridge failed"; return false
-        }
-
-        isRunning = true
-        lastError = ""
-        activeRemark = profile.remark
-        currentProfileId = profile.id
-        connectedSince = System.currentTimeMillis()
-        Log.i(TAG, "VPN up: ${profile.remark}")
-        return true
+    if (!establishTun()) {
+        lastError = "Couldn't create the VPN interface"
+        return false
     }
+
+    val fd = tunFd?.fd ?: run {
+        lastError = "VPN interface unavailable"
+        return false
+    }
+
+    val ctrl = Libv2ray.newCoreController(Callback())
+    controller = ctrl
+
+    try {
+        Log.e("VPN_STEP", "Before startLoop")
+        ctrl.startLoop(config, 0)
+        Log.e("VPN_STEP", "After startLoop")
+    } catch (e: Throwable) {
+        Log.e("VPN_STEP", "startLoop failed", e)
+        lastError = e.stackTraceToString()
+        return false
+    }
+
+    try {
+        Log.e("VPN_STEP", "Before TProxyService")
+
+        val bridge = TProxyService(
+            filesDir = filesDir,
+            tunFd = fd,
+            mtu = VPN_MTU,
+            ipv4 = PRIVATE_VLAN4_CLIENT,
+            socksPort = XrayConfigBuilder.SOCKS_PORT
+        )
+
+        Log.e("VPN_STEP", "Before bridge.start()")
+        bridge.start()
+        Log.e("VPN_STEP", "After bridge.start()")
+
+        tproxy = bridge
+    } catch (t: Throwable) {
+        Log.e("VPN_STEP", "TProxy failed", t)
+        lastError = t.stackTraceToString()
+        return false
+    }
+
+    isRunning = true
+    lastError = ""
+    activeRemark = profile.remark
+    currentProfileId = profile.id
+    connectedSince = System.currentTimeMillis()
+
+    Log.i(TAG, "VPN up: ${profile.remark}")
+    return true
+}
 
     /** Rewrites the config to fragment the TLS ClientHello (defeats most SNI/DPI blocking). */
     private fun maybeFragment(rawConfig: String): String {
