@@ -46,7 +46,6 @@ jobs:
   # FULL: real tunnel. Builds Xray-core (libv2ray.aar) + hev bridge, then the APK.
   full-apk:
     runs-on: ubuntu-latest
-    continue-on-error: true
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-java@v4
